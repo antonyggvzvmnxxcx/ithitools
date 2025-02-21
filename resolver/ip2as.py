@@ -103,7 +103,8 @@ class asname:
                 try:
                     asn = int(parts[0])
                     as_id = "AS" + str(asn)
-                    as_name = parts[1] + " -- " + parts[2]
+                    #as_name = parts[1] + " -- " + parts[2]
+                    as_name = parts[1]
                     if as_id in self.table:
                         print("Duplicate: " + l)
                     else:
