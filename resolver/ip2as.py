@@ -103,8 +103,7 @@ class asname:
                 try:
                     asn = int(parts[0])
                     as_id = "AS" + str(asn)
-                    #as_name = parts[1] + " -- " + parts[2]
-                    as_name = parts[1]
+                    as_name = parts[1] + " -- " + parts[2]
                     if as_id in self.table:
                         print("Duplicate: " + l)
                     else:
@@ -120,6 +119,8 @@ class asname:
         n = ""
         if asn in self.table:
             n = self.table[asn]
+            if n[-6:].startswith(" -- "):
+                 n = n[:-6]
         return n
     
     def cc(self, asn):

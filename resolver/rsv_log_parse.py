@@ -67,6 +67,7 @@ import ip2as
 import open_rsv
 import bz2
 import time
+import top_as
 
 class rsv_log_line:
     def __init__(self):
@@ -275,10 +276,14 @@ class rsv_log_line:
         if len(self.resolver_tag) == 0:
             if self.resolver_AS == self.query_AS:
                 self.resolver_tag = "Same_AS"
+            elif top_as.as_group(self.resolver_AS) == top_as.as_group(self.query_AS):
+                self.resolver_tag = "Same_group"
+            elif self.resolver_AS in top_as.CloudAS:
+                self.resolver_tag = "Cloud"
             elif self.resolver_cc == self.query_cc:
                 self.resolver_tag = "Same_CC"
             else:
-                self.resolver_tag = "Others"
+                self.resolver_tag = "Others_cc"
 
     # debugging function when we want to verify that parsing works as expected.
     def pretty_string(self):
@@ -368,10 +373,13 @@ class rsv_log_line:
 # pivot per query and per AS, produce a dictionary with
 # one table per AS, containing the queries for that AS
 
-tag_list = [ 'Same_AS', 'Same_CC', 'Others', 'googlepdns', 'cloudflare', \
+tag_list = [ 'Same_AS', 'Same_group',  'Cloud', 'Same_CC', 'Other_cc', 'googlepdns', 'cloudflare', \
             'opendns', 'quad9', 'level3', 'neustar', 'he' ]
-tag_isp_set = set(['Same_AS', 'Same_CC', 'Others'])
-color_list = [ 'blue', 'magenta', 'indigo', 'green', 'orange', 'red', 'violet', 'yellow', 'yellow', 'yellow', 'yellow' ]
+tag_isp_set = set(['Same_AS', 'Same_group' ])
+tag_public_set = set([ 'googlepdns', 'cloudflare', \
+            'opendns', 'quad9', 'level3', 'neustar', 'he' ])
+color_list = [ 'blue', 'cyan', 'olive', 'green', 'orange', 'red',  'purple', \
+             'brown', 'pink', 'gray', 'yellow', 'violet', 'magenta', 'lime', 'chartreuse', 'salmon' ]
 dot_headers = [ 'rsv_type', 'rank', 'first_time', 'delay' ]
 
 class pivoted_record:
@@ -418,7 +426,7 @@ class pivoted_record:
                 self.delta_times[tag] = delta_t
                 if tag in tag_isp_set:
                     self.has_isp = True
-                else:
+                elif tag in tag_public_set:
                     self.has_public = True
 
 class subnet_record:
@@ -452,6 +460,7 @@ class pivoted_cc_AS_record:
         self.nb_isp = 0
         self.nb_public = 0
         self.nb_both = 0
+        self.nb_others = 0
         self.nb_total = 0
         self.subnets = dict()
 
@@ -495,8 +504,10 @@ class pivoted_cc_AS_record:
                     self.nb_both += 1
                 else:
                     self.nb_public += 1
-            else:
+            elif self.rqt[key].has_isp:
                 self.nb_isp += 1
+            else:
+                self.nb_others += 1
 
     # Produce a one line summary record for the ASN   
     # Return a list of values:
@@ -507,7 +518,8 @@ class pivoted_cc_AS_record:
     # r[4] = total number of ISP only queries
     # r[5] = total number of public DNS only queries
     # r[6] = total number of queries served by both ISP and public DNS
-    # r[7]..[5+N] = total number of queries served by a given category
+    # r[7] = total number of queries not served by either ISP or public DNS
+    # r[8]..[5+N] = total number of queries served by a given category
 
     def get_summary(self, first_only):
         r = [
@@ -517,14 +529,15 @@ class pivoted_cc_AS_record:
             self.nb_total,
             self.nb_isp,
             self.nb_public,
-            self.nb_both
+            self.nb_both,
+            self.nb_others
         ]
         for tag in tag_list:
             r.append(0)
 
         for key in self.rqt:
             rqt_r = self.rqt[key]
-            rank = 7
+            rank = 8
             for tag in tag_list:
                 if tag in rqt_r.rsv_times:
                     r[rank] += 1
@@ -619,7 +632,9 @@ class pivoted_per_query:
             'q_total',
             'isp',
             'public',
-            'both' ]
+            'both',
+            'others',
+           ]
         for tag in tag_list:
             headers.append(tag)
         s_list = []
