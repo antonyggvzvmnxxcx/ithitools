@@ -118,7 +118,8 @@ if __name__ == "__main__":
     # from both ISP resolvers and public resolvers. 
     nb_published = 0
     for key in key_list:
-        if ppq.cc_AS_list[key].nb_both > target_threshold:
+        if ppq.cc_AS_list[key].nb_both + ppq.cc_AS_list[key].nb_others > target_threshold:
+            # collect table, one row per event
             dot_df = ppq.get_delta_t_both(key)
             plot_delay_file = os.path.join(image_dir, key[:2] + "_" + key[2:] + "_plot_delays" )
             rsv_log_parse.do_graph(key, dot_df, plot_delay_file, x_delay=True, log_y=True)
