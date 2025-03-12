@@ -615,6 +615,14 @@ class pivoted_per_query:
                     
         return nb_events
 
+    def load_df_row(self, x):
+        self.process_event(x['query_time'], x['resolver_tag'], x['query_cc'], x['query_AS'], x['query_user_id'], x['resolver_IP'], x['resolver_AS'])
+
+    def load_csv_log(self, saved_file):
+        df = pd.read_csv(saved_file)
+        df.apply(lambda x: self.load_df_row(x), axis=1)
+        return df.shape[0]
+
     def key_list(self):
         return list(self.cc_AS_list.keys())
 
