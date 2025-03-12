@@ -80,7 +80,8 @@ if __name__ == "__main__":
     # from both ISP resolvers and public resolvers. 
     nb_published = 0
     for key in key_list:
-        if ppq.cc_AS_list[key].nb_both + ppq.cc_AS_list[key].nb_others > target_threshold:
+        if ppq.cc_AS_list[key].nb_both  > target_threshold or \
+           (ppq.cc_AS_list[key].nb_others > target_threshold and ppq.cc_AS_list[key].nb_isp > target_threshold):
             # collect table, one row per event
             dot_df = ppq.get_delta_t_both(key)
             plot_delay_file = os.path.join(output_dir, key[:2] + "_" + key[2:] + "_plot_delays" )

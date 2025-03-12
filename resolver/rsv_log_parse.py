@@ -283,7 +283,7 @@ class rsv_log_line:
             elif self.resolver_cc == self.query_cc:
                 self.resolver_tag = "Same_CC"
             else:
-                self.resolver_tag = "Others_cc"
+                self.resolver_tag = "Other_cc"
 
     # debugging function when we want to verify that parsing works as expected.
     def pretty_string(self):
@@ -428,6 +428,9 @@ class pivoted_record:
                     self.has_isp = True
                 elif tag in tag_public_set:
                     self.has_public = True
+                #else:
+                #    if (tag != 'Cloud') and (tag !=  'Same_CC') and (tag != 'Other_cc'):
+                #        print("Other tag: " + tag)
 
 class subnet_record:
     def __init__(self, query_cc, query_AS, resolver_AS, subnet, count):
