@@ -552,12 +552,11 @@ class pivoted_cc_AS_record:
             rqt_r = self.rqt[key]
             if len(rqt_r.delta_times) == 0:
                 rqt_r.compute_delta_times()
-            if rqt_r.has_public and rqt_r.has_isp:
-                n_both = 0
-                for tag in rqt_r.delta_times:
-                    n_both += 1
-                    dot_line = [ tag, n_both,  rqt_r.first_time, rqt_r.delta_times[tag]]
-                    dots.append(dot_line)
+            n_both = 0
+            for tag in rqt_r.delta_times:
+                n_both += 1
+                dot_line = [ tag, n_both,  rqt_r.first_time, rqt_r.delta_times[tag]]
+                dots.append(dot_line)
         dot_df = pd.DataFrame(dots,columns=dot_headers)
         return dot_df
 
