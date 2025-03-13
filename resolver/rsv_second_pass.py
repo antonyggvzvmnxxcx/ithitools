@@ -14,12 +14,14 @@ import pandas as pd
 import traceback
 import top_as
 import time
+import csv
 
 def usage():
     print("Usage: python rsv_second_pass.py <image_dir> <output_dir> <csv_file> ... <csv_file>\n")
     print("This script will load the csv files,")
     print("and write plot and histogram images in the specied image directory.")
     print("If willretains all ASes with more than 1000 UIDs.")
+    
 
 # Main program
 if __name__ == "__main__":
@@ -64,6 +66,8 @@ if __name__ == "__main__":
     summary_df = ppq.get_summaries(key_list, False);
     summary_file = os.path.join(output_dir, "summary.csv" )
     summary_df.to_csv(summary_file, sep=",")
+
+
     print("Published summaries for " + str(len(key_list)) + " CC+AS" + " in " + summary_file)
     time_summaries_computed = time.time()
     print("Summaries computed at " + str(time_summaries_computed - time_start) + " seconds.")
