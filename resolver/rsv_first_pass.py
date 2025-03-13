@@ -14,6 +14,7 @@ import pandas as pd
 import traceback
 import top_as
 import time
+import bz2
 
 def usage():
     print("Usage: python rsv_first_pass.py <csv_file> <log_file> <ASxxxx>\n")
@@ -28,7 +29,7 @@ def get_log_as_df(log_file, ip2a4, ip2a6, as_table, rr_types=[], experiment=[], 
         filtering = len(rr_types) > 0 or len(experiment) > 0 or len(query_ASes) > 0
         q_set = set(query_ASes)
         t = []
-
+        old_time = 0
         if log_file.endswith(".bz2"):
             F = bz2.open(log_file, "rt")
         else:
@@ -48,12 +49,15 @@ def get_log_as_df(log_file, ip2a4, ip2a6, as_table, rr_types=[], experiment=[], 
                     x.set_resolver_AS(ip2a4, ip2a6, as_table)
                     t.append(x.row())
                     nb_events += 1
+
                     if (nb_events%lth) == 0:
+                        new_time = time.time() - time_start
                         if time_start > 0:
-                            print("loaded " + str(nb_events) + " events at " + str(time.time() - time_start))
+                            print("loaded " + str(nb_events) + " events at " + str(new_time))
                         else:
                             print("loaded " + str(nb_events) + " events.")
-                        lth *= 2
+                        if lth < 1000000:
+                            lth *= 2
         df = pd.DataFrame(t, columns= rsv_log_parse.rsv_log_line.header())
         return df
 
@@ -92,8 +96,11 @@ if __name__ == "__main__":
     df = get_log_as_df(log_file, ip2a4, ip2a6, as_names, rr_types=['A', 'AAAA', 'HTTPS'], experiment=['0du'], query_ASes=target_ASes, log_threshold = 15625, time_start=time_start)
     time_file_read = time.time()
     print("File read at " + str(time.time() - time_start) + " seconds.")
-    df.to_csv(csv_file)
-    print("Saved " + str(df.shape[0]) + " events to " + csv_file + " at " + str(time.time() - time_start) + " seconds.")
+    if df.shape[0] == 0:
+        print("No event found. Are you sure this is a correct file?")
+    else:
+        df.to_csv(csv_file)
+        print("Saved " + str(df.shape[0]) + " events to " + csv_file + " at " + str(time.time() - time_start) + " seconds.")
 
     exit(0)
 

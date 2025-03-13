@@ -68,6 +68,7 @@ import open_rsv
 import bz2
 import time
 import top_as
+import csv
 
 class rsv_log_line:
     def __init__(self):
@@ -283,7 +284,7 @@ class rsv_log_line:
             elif self.resolver_cc == self.query_cc:
                 self.resolver_tag = "Same_CC"
             else:
-                self.resolver_tag = "Others_cc"
+                self.resolver_tag = "Other_cc"
 
     # debugging function when we want to verify that parsing works as expected.
     def pretty_string(self):
@@ -428,6 +429,9 @@ class pivoted_record:
                     self.has_isp = True
                 elif tag in tag_public_set:
                     self.has_public = True
+                #else:
+                #    if (tag != 'Cloud') and (tag !=  'Same_CC') and (tag != 'Other_cc'):
+                #        print("Other tag: " + tag)
 
 class subnet_record:
     def __init__(self, query_cc, query_AS, resolver_AS, subnet, count):
@@ -522,6 +526,9 @@ class pivoted_cc_AS_record:
     # r[8]..[5+N] = total number of queries served by a given category
 
     def get_summary(self, first_only):
+        if not isinstance(self.query_cc, str) or \
+            len(self.query_cc) > 2:
+            self.query_cc = 'ZZ'
         r = [
             self.query_cc,
             self.query_AS,
@@ -573,7 +580,7 @@ class pivoted_per_query:
         self.tried = 0
 
     def process_event(self, qt, tag, query_cc, query_AS, uid, resolver_IP, resolver_AS):
-        key = query_cc + query_AS
+        key = str(query_cc) + str(query_AS)
         if not key in self.cc_AS_list:
             self.cc_AS_list[key] = pivoted_cc_AS_record(query_cc,query_AS)
 
@@ -619,9 +626,43 @@ class pivoted_per_query:
         self.process_event(x['query_time'], x['resolver_tag'], x['query_cc'], x['query_AS'], x['query_user_id'], x['resolver_IP'], x['resolver_AS'])
 
     def load_csv_log(self, saved_file):
-        df = pd.read_csv(saved_file)
-        df.apply(lambda x: self.load_df_row(x), axis=1)
-        return df.shape[0]
+        #df = pd.read_csv(saved_file)
+        #df.apply(lambda x: self.load_df_row(x), axis=1)
+        #return df.shape[0]
+        nb_events = 0
+        with open(saved_file, newline='') as csvfile:
+            rsv_reader = csv.reader(csvfile, delimiter=',', quotechar='"')
+            is_first = True
+            is_second = True
+            header_row = [ 'query_time', 'resolver_tag', 'query_cc', 'query_AS', 'query_user_id', 'resolver_IP', 'resolver_AS' ]
+            header_index = [ -1, -1, -1, -1, -1,  -1,  -1 ]
+
+            for row in rsv_reader:
+                if is_first:
+                    # print(",".join(row))
+                    for i in range(0, len(header_row)):
+                        for x in range(0, len(row)):
+                            if row[x] == header_row[i]:
+                            #   print("row[" + str(x) + "](" + str(row[x]) + ") == " + header_row[i])
+                                header_index[i] = x
+                                break
+                            #else:
+                            #    print(row[x] + " != " + header_row[i])
+                        if header_index[i] < 0:
+                            print("Could not find " + header_row[i] + " in " + ','.join(row))
+                            exit(-1)
+                    is_first = False
+                else:
+                    if (is_second):
+                        #print(",".join(row))
+                        #for i in range(0, len(header_row)):
+                        #    print(str(i) + ": x[" + header_row[i] + "] = " + str(row[header_index[i]]))
+                        is_second = False
+                    self.process_event(float(row[header_index[0]]), row[header_index[1]], row[header_index[2]], 
+                                       row[header_index[3]], row[header_index[4]], row[header_index[5]],
+                                       row[header_index[6]])
+                    nb_events += 1
+        return nb_events
 
     def key_list(self):
         return list(self.cc_AS_list.keys())
