@@ -706,7 +706,8 @@ class pivoted_per_query:
 def do_graph(key, dot_df, image_file="", x_delay=False, log_y=False):
     if log_y:
         # replace 0 by low value so logy plots will work
-        dot_df.loc[dot_df['delay'] == 0, 'delay'] += 0.00001
+        # also ensure that the low value of 1 microsec is at bottom of graph
+        dot_df.loc[dot_df['delay'] < 0.000001, 'delay'] = 0.000001
     is_first = True
     sub_df = []
     x_value = "rank"
@@ -722,9 +723,9 @@ def do_graph(key, dot_df, image_file="", x_delay=False, log_y=False):
         rsv_color = color_list[i]
         if len(sub_df[i]) > 0:
             if is_first:
-                axa = sub_df[i].plot.scatter(x=x_value, y="delay", logy=log_y, alpha=0.25, color=rsv_color)
+                axa = sub_df[i].plot.scatter(x=x_value, y="delay", logy=log_y, alpha=0.5, color=rsv_color)
             else:
-                sub_df[i].plot.scatter(ax=axa, x=x_value, y="delay", logy=log_y, alpha=0.25, color=rsv_color)
+                sub_df[i].plot.scatter(ax=axa, x=x_value, y="delay", logy=log_y, alpha=0.5, color=rsv_color)
             is_first = False
             legend_list.append(rsv)
     plt.title("Delay (seconds) per provider for " + key[:2] + "/" + key[2:])
@@ -762,8 +763,8 @@ def do_hist(key, dot_df, image_file):
             clrs.append(color_list[i])
             legend_list.append(rsv)
             is_first = False
-    if x_min == 0:
-        x_min = 0.00001
+    if x_min < 0.000001:
+        x_min = 0.000001
 
     if not is_first:
         logbins = np.logspace(np.log10(x_min),np.log10(x_max), num=20)
