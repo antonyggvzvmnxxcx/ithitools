@@ -465,16 +465,21 @@ class pivoted_cc_AS_record:
         self.nb_public = 0
         self.nb_both = 0
         self.nb_others = 0
-        self.nb_total = 0
+        self.nb_tag_uid = 0
+        self.nb_all = 0
         self.subnets = dict()
 
     # process event 
     # For each UID, we compute a pivoted record, which contains a dict() of "tags".
     # If a tag is present in the dict, we only retain the earliest time for that ta
     def process_event(self, qt, tag, query_cc, query_AS, uid, resolver_IP, resolver_AS):
+        self.nb_all += 1
         if uid in self.rqt:
+            if not tag in self.rqt[uid].rsv_times:
+                self.nb_tag_uid += 1
             self.rqt[uid].add_event2(qt, tag)
         else:
+            self.nb_tag_uid += 1
             self.rqt[uid] = pivoted_record(qt, tag, query_cc, query_AS, uid)
             if not uid in self.user_ids:
                 self.user_ids.add(uid)
@@ -502,7 +507,6 @@ class pivoted_cc_AS_record:
     def compute_delta_t(self, delta_max = 0.5):
         for key in self.rqt:
             self.rqt[key].compute_delta_t(delta_max=delta_max)
-            self.nb_total += 1
             if self.rqt[key].has_public:
                 if self.rqt[key].has_isp:
                     self.nb_both += 1
@@ -518,7 +522,8 @@ class pivoted_cc_AS_record:
     # r[0] = CC
     # r[1] = ASN
     # r[2] = total number of UIDs
-    # r[3] = total number of queries (should be same as total number UIDs)
+    # r[3] = total number of queries over all (includes repeat)
+    # r[4] = total number of tags (one per query and "tag")
     # r[4] = total number of ISP only queries
     # r[5] = total number of public DNS only queries
     # r[6] = total number of queries served by both ISP and public DNS
@@ -529,26 +534,30 @@ class pivoted_cc_AS_record:
         if not isinstance(self.query_cc, str) or \
             len(self.query_cc) > 2:
             self.query_cc = 'ZZ'
+        
         r = [
             self.query_cc,
             self.query_AS,
             len(self.user_ids),
-            self.nb_total,
+            self.nb_tag_uid,
+            self.nb_all,
             self.nb_isp,
             self.nb_public,
             self.nb_both,
             self.nb_others
         ]
+        rank0 = len(r)
         for tag in tag_list:
             r.append(0)
 
         for key in self.rqt:
             rqt_r = self.rqt[key]
-            rank = 8
+            rank = rank0
             for tag in tag_list:
                 if tag in rqt_r.rsv_times:
                     r[rank] += 1
                 rank += 1
+                
         return r
 
     # get_delta_t_both:
@@ -677,7 +686,8 @@ class pivoted_per_query:
             'q_cc', \
             'q_AS', \
             'uids',
-            'q_total',
+            'q_uid_tags',
+            'q_repeats',
             'isp',
             'public',
             'both',
@@ -728,8 +738,8 @@ def do_graph(key, dot_df, image_file="", x_delay=False, log_y=False):
                 sub_df[i].plot.scatter(ax=axa, x=x_value, y="delay", logy=log_y, alpha=0.5, color=rsv_color)
             is_first = False
             legend_list.append(rsv)
-    plt.title("Delay (seconds) per provider for " + key[:2] + "/" + key[2:])
-    plt.legend(legend_list)
+    plt.title("Delay of second packets per query for " + key[:2] + "/" + key[2:])
+    plt.legend(legend_list, loc='upper right')
     if len(image_file) == 0:
         plt.show()
     else:
@@ -739,13 +749,13 @@ def do_graph(key, dot_df, image_file="", x_delay=False, log_y=False):
     
 def do_hist(key, dot_df, image_file):
     # get a frame from the list
-    dot_df.loc[dot_df['delay'] == 0, 'delay'] += 0.00001
+    dot_df.loc[dot_df['delay'] == 0, 'delay'] += 0.000001
     is_first = True
     clrs = []
     legend_list = []
     row_list = []
     x_min = 1000000
-    x_max = 0.00001
+    x_max = 0.000001
 
     for i in range(0, len(tag_list)):
         rsv = tag_list[i]
@@ -769,8 +779,8 @@ def do_hist(key, dot_df, image_file):
     if not is_first:
         logbins = np.logspace(np.log10(x_min),np.log10(x_max), num=20)
         axa = plt.hist(row_list, logbins, histtype='bar', color=clrs)
-        plt.title("Histogram of delays (seconds) per provider for " + key[:2] + "/" + key[2:])
-        plt.legend(legend_list)
+        plt.title("Histogram of delays to second packets per query for " + key[:2] + "/" + key[2:])
+        plt.legend(legend_list, loc='upper right')
         plt.xscale('log')
         if len(image_file) == 0:
             plt.show()
