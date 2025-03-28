@@ -76,9 +76,9 @@ if __name__ == "__main__":
     subnet_df = ppq.get_subnets()
     subnet_file = os.path.join(output_dir, "subnets.csv" )
     subnet_df.to_csv(subnet_file, sep=",")
-    print("Published summaries for " + str(subnet_df.shape[0]) + " subnets" + " in " + subnet_file)
+    print("Published statistics for " + str(subnet_df.shape[0]) + " subnets" + " in " + subnet_file)
     time_summaries_published = time.time()
-    print("Summaries published at " + str(time_summaries_published - time_start) + " seconds.")
+    print("Subnets published at " + str(time_summaries_published - time_start) + " seconds.")
 
     # Analyse the spread of delays for the AS that have a sufficient share of UID with events
     # from both ISP resolvers and public resolvers. 
@@ -88,11 +88,13 @@ if __name__ == "__main__":
            (ppq.cc_AS_list[key].nb_others > target_threshold and ppq.cc_AS_list[key].nb_isp > target_threshold):
             # collect table, one row per event
             dot_df = ppq.get_delta_t_both(key)
-            plot_delay_file = os.path.join(output_dir, key[:2] + "_" + key[2:] + "_plot_delays" )
-            rsv_log_parse.do_graph(key, dot_df, plot_delay_file, x_delay=True, log_y=True)
-            host_delay_files = os.path.join(output_dir,  key[:2] + "_" + key[2:] + "_hist_delays" )
-            rsv_log_parse.do_hist(key, dot_df, image_file=host_delay_files)
-            nb_published += 1
+            dot_df_nz = dot_df[dot_df['delay'] > 0]
+            if dot_df_nz.shape[0] > 0:
+                plot_delay_file = os.path.join(output_dir, key[:2] + "_" + key[2:] + "_plot_delays" )
+                rsv_log_parse.do_graph(key, dot_df, plot_delay_file, x_delay=True, log_y=True)
+                host_delay_files = os.path.join(output_dir,  key[:2] + "_" + key[2:] + "_hist_delays" )
+                rsv_log_parse.do_hist(key, dot_df_nz, image_file=host_delay_files)
+                nb_published += 1
             if (nb_published%100) == 0:
                 print("Published " + str(nb_published) + " AS graphs")
     print("Done publishing " + str(nb_published) + " AS graphs")
