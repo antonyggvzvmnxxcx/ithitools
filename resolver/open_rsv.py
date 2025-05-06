@@ -345,6 +345,8 @@ n4_table = [
     [ipaddress.ip_network("149.28.187.17/32"),"cleanbrowsing"],
     [ipaddress.ip_network("154.16.135.216/32"),"cleanbrowsing"],
     [ipaddress.ip_network("158.38.58.187/32"),"quad9"],
+    [ipaddress.ip_network("162.158.0.0/16"),"cloudflare"],
+    [ipaddress.ip_network("162.159.0.0/16"),"cloudflare"],
     [ipaddress.ip_network("166.70.78.3/32"),"quad9"],
     [ipaddress.ip_network("167.179.94.245/32"),"cleanbrowsing"],
     [ipaddress.ip_network("170.81.42.58/32"),"cleanbrowsing"],

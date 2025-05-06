@@ -140,6 +140,7 @@ class resolver_list:
         self.resolvers = dict()
         self.top_list = []
         self.sum_total = 0
+        self.groups = dict()
 
     def load(self, file_name, ip2a4, ip2a6, as_names, rr_types=[], experiment=[], log_threshold = 15625, time_start = 0):
         nb_events = 0
