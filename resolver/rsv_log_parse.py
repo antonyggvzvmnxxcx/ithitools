@@ -788,6 +788,17 @@ def do_hist(key, dot_df, image_file):
             plt.savefig(image_file)
         plt.close()
 
+def get_time_hour(first_time):
+    fth = int(first_time/3600)
+    ft = fth*3600
+    return ft
+
+def get_slice_time(query_time, first_time, slice_duration, debug=False):
+    slice_nb = int((query_time - first_time)/slice_duration)
+    if debug:
+        print("(" + str(query_time) + " - " + str(first_time) + ") / " + str(slice_duration) + " = " + str(slice_nb))
+    slice_time = first_time + slice_nb*slice_duration
+    return slice_time
 
 
 

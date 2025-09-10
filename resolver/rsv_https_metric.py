@@ -22,6 +22,7 @@ import os
 from pathlib import Path
 import ip2as
 import rsv_log_parse
+from rsv_log_parse import get_time_hour, get_slice_time
 import pandas as pd
 import traceback
 import top_as
@@ -30,32 +31,105 @@ import calendar
 import csv
 import rsv_arguments
 
-
-
 def usage():
     print("Usage: python rsv_https.py <output_dir> [<list of AS] <csv_file> ... <csv_file>\n")
     print("This script will load the csv files, and produce output files:")
     print("   <output_dir>/https_metrics.csv: table of https usage per 1 hour interval.")
     print("   <output_dir>/https_5min_ASnnnn.csv: table of https by 5 minute interval for ASnnnn.")
 
-def get_time_hour(first_time):
-    fth = int(first_time/3600)
-    ft = fth*3600
-    return ft
-
 class https_slice:
     def __init__(self):
         self.nb_uid = 0
         self.nb_https = 0
+        self.nb_https_isp = 0
+        self.nb_https_pdns = 0
+    def add_event(self, event):
+        self.nb_uid += 1
+        if event.has_https: 
+            self.nb_https += 1
+        if event.has_https_isp: 
+            self.nb_https_isp += 1
+        if event.has_https_pdns: 
+            self.nb_https_pdns += 1
 
 class https_query:
-    def __init__(self, uid, query_time, query_AS):
+    def __init__(self, uid, query_time, query_AS, query_cc):
         self.uid = uid
         self.query_time = query_time
         self.query_AS = query_AS
+        self.query_cc = query_cc
         self.has_https = False
         self.has_a = False
         self.has_aaaa = False
+        self.has_https_isp = False
+        self.has_https_pdns = False
+
+class https_slices:        
+    def __init__(self, slice_duration, query_AS):
+        self.has_AS = len(query_AS) > 0
+        self.query_AS = query_AS
+        self.slice_duration = slice_duration
+        self.slices = dict()
+        self.first_time = 0
+
+    def add_event(self, event):
+        if self.has_AS and event.query_AS != self.query_AS:
+            return False
+        slice_time = get_slice_time(event.query_time, self.first_time, self.slice_duration)
+        if not slice_time in self.slices:
+            self.slices[slice_time] = https_slice()
+        self.slices[slice_time].add_event(event)
+
+        return True
+
+    def get_df(self):
+        v = []
+        for slice_time in self.slices:
+            if self.slices[slice_time].nb_uid > 0:
+                https_metric = self.slices[slice_time].nb_https/self.slices[slice_time].nb_uid
+                https_isp_metric = self.slices[slice_time].nb_https_isp/self.slices[slice_time].nb_uid
+                https_pdns_metric = self.slices[slice_time].nb_https_pdns/self.slices[slice_time].nb_uid
+                x = [ slice_time, https_metric, https_isp_metric, https_pdns_metric, 
+                     self.slices[slice_time].nb_uid, self.slices[slice_time].nb_https,
+                     self.slices[slice_time].nb_https_isp, self.slices[slice_time].nb_https_pdns ]
+                v.append(x)
+
+        v.sort(key=lambda x:x[0])
+        df = pd.DataFrame(v, columns=["slice_time", "https_metric", "https_isp_metric", 
+                                      "https_pnds_metric", "nb_uids",
+                                      "nb_https", "nb_https_isp", "nb_https_pdns"])
+        return df
+
+class https_cc_as_list:
+    def __init__(self):
+        self.AS_list = dict()
+
+    def add_event(self, event):
+        key = event.query_cc + event.query_AS
+        if not key in self.AS_list:
+            self.AS_list[key] =  https_slice()
+        self.AS_list[key].add_event(event)
+        return True
+
+    def get_df(self, threshold=10000):
+        v = []
+        for key in self.AS_list:
+            if self.AS_list[key].nb_uid >= threshold:
+                https_metric = self.AS_list[key].nb_https/self.AS_list[key].nb_uid
+                https_isp_metric = self.AS_list[key].nb_https_isp/self.AS_list[key].nb_uid
+                https_pdns_metric = self.AS_list[key].nb_https_pdns/self.AS_list[key].nb_uid
+
+                x = [ key[0:2], key[2:], https_metric, https_isp_metric, https_pdns_metric,
+                    self.AS_list[key].nb_uid, self.AS_list[key].nb_https, 
+                    self.AS_list[key].nb_https_isp, self.AS_list[key].nb_https_pdns]
+                v.append(x)
+
+        v.sort(key=lambda x:x[4], reverse=True)
+
+        df = pd.DataFrame(v, columns=["query_cc", "query_AS", "https_metric", "https_isp_metric", 
+                                      "https_pnds_metric", "nb_uids",
+                                      "nb_https", "nb_https_isp", "nb_https_pdns"])
+        return df
 
 class https_queries:
     def __init__(self):
@@ -63,12 +137,15 @@ class https_queries:
         self.first_time = 0
         self.tried = 0
 
-
-    def add_query(self, uid, query_time, query_AS, rr_type):
+    def add_query(self, uid, query_time, query_AS, query_cc, rr_type, resolver_tag):
         if not uid in self.uid_list:
-            self.uid_list[uid] = https_query(uid, query_time, query_AS)
+            self.uid_list[uid] = https_query(uid, query_time, query_AS, query_cc)
         if rr_type == 'HTTPS':
             self.uid_list[uid].has_https = True
+            if resolver_tag in rsv_log_parse.tag_isp_set:
+                self.uid_list[uid].has_https_isp = True
+            elif resolver_tag in rsv_log_parse.tag_public_set:
+                self.uid_list[uid].has_https_pdns = True            
         elif rr_type == 'A':
             self.uid_list[uid].has_a = True
         elif rr_type == 'AAAA':
@@ -83,8 +160,8 @@ class https_queries:
             rsv_reader = csv.reader(csvfile, delimiter=',', quotechar='"')
             is_first = True
             is_second = True
-            header_row = [ 'query_time', 'query_AS', 'query_user_id', 'rr_type' ]
-            header_index = [ -1, -1, -1, -1 ]
+            header_row = [ 'query_time', 'query_AS', 'query_cc', 'query_user_id', 'rr_type', 'resolver_tag' ]
+            header_index = [ -1, -1, -1, -1, -1, -1 ]
 
             for row in rsv_reader:
                 if is_first:
@@ -109,19 +186,27 @@ class https_queries:
                         is_second = False
                     query_time = float(row[header_index[0]])
                     query_AS = row[header_index[1]]
-                    uid = row[header_index[2]]
-                    rr_type = row[header_index[3]]
-                    self.add_query(uid, query_time, query_AS, rr_type)
+                    query_cc = row[header_index[2]]
+                    uid = row[header_index[3]]
+                    rr_type = row[header_index[4]]
+                    resolver_tag = row[header_index[5]]
+                    self.add_query(uid, query_time, query_AS, query_cc, rr_type, resolver_tag)
                     nb_events += 1
 
         return nb_events
 
-    def get_slice_time(self, query_time, slice_duration, debug=False):
-        slice_nb = int((query_time - self.first_time)/slice_duration)
-        if debug:
-            print("(" + str(query_time) + " - " + str(self.first_time) + ") / " + str(slice_duration) + " = " + str(slice_nb))
-        slice_time = self.first_time + slice_nb*slice_duration
-        return slice_time
+    
+    def add_slices(self, slice_list):
+        nb_events = 0
+        nb_processed = 0
+
+        for uid in self.uid_list:
+            event = self.uid_list[uid]
+            nb_events += 1
+            if slice_list.add_event(event):
+                nb_processed += 1
+
+        print("Processed " + str(nb_processed) + " out of " + str(nb_events) + " events.")
     
     def get_slices(self, slice_duration, query_AS):
         slices = dict()
@@ -199,31 +284,35 @@ if __name__ == "__main__":
         usage()
         exit(-1)
 
-    hq = https_queries()
+    https_list = [ https_slices(3600, "") , https_cc_as_list() ]
+    for query_AS in as_list:
+        https_list.append(https_slices(300, query_AS))
 
+    first_time = 0
     for csv_file in csv_files:
+        hq = https_queries()
         nb_events = hq.load_csv_log(csv_file)
-        print(csv_file + ": " + str(nb_events) + " events.")
-        first_hour = get_time_hour(hq.first_time)
+        print(csv_file + ": " + str(nb_events) + " events, " + str(len(hq.uid_list)) + " unique ids.")
+        if first_time == 0:
+            first_time = hq.first_time
+            for hts in https_list:
+                hts.first_time = first_time
+        for hts in https_list:
+            hq.add_slices(hts)
 
-    print("loaded " + str(len(hq.uid_list)) + " unique ids.")
-    hq.first_time = get_time_hour(hq.first_time)
-    print("Start time: " + str(hq.first_time) + " (" + time.asctime(time.gmtime(hq.first_time)) + ")")
-
-    metric_df = hq.get_slices(3600, "")
+    metric_df = https_list[0].get_df()
     metric_file = os.path.join(output_dir, "https_metric.csv" )
     metric_df.to_csv(metric_file, sep=",")
     print("Saved: " + str(metric_df.shape[0]) + " time slices in " + metric_file)
 
-    as_df = hq.get_AS_summary()
+    as_df = https_list[1].get_df()
     as_file = os.path.join(output_dir, "https_as_list.csv" )
     as_df.to_csv(as_file, sep=",")
     print("Saved: " + str(as_df.shape[0]) + " AS in " + as_file)
 
-    for asn in as_list:
-        asn_df = hq.get_slices(300, asn)
+    for asn_dup in https_list[2:]:
+        asn = asn_dup.query_AS
         asn_file = os.path.join(output_dir, "https_" + asn + ".csv" )
+        asn_df = asn_dup.get_df()
         asn_df.to_csv(asn_file, sep=",")
         print("Saved: " + str(asn_df.shape[0]) + " time slices in " + asn_file)
-
-
