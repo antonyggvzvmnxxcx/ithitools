@@ -1,12 +1,12 @@
 import sys
-import open
+import open_servers
 
 
 
 
 
 
-table_print(sys.argv[1])
+open_servers.table_print(sys.argv[1], sys.argv[2])
 
 
 
