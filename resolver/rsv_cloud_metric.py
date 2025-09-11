@@ -235,6 +235,11 @@ if __name__ == "__main__":
         exit(-1)
 
     output_dir = sys.argv[1]
+    if not os.path.isdir(output_dir):
+        print("Invalid output dir: " + output_dir)
+        usage()
+        exit(-1)
+
     as_list = rsv_arguments.parse_AS_list(sys.argv[2:])
     csv_files, has_error = rsv_arguments.parse_file_list(sys.argv[2 + len(as_list):], [ ".csv"])
     if has_error:
