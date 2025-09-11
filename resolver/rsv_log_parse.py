@@ -115,19 +115,31 @@ class rsv_log_line:
             as_parsed = 0
         ad_time_str = query_parts[3+as_parsed]
         if ad_time_str.startswith("s"):
-            self.query_ad_time = int(ad_time_str[1:])
+            try:
+                self.query_ad_time = int(ad_time_str[1:])
+            except:
+                if is_valid:
+                    print("Bad Time:" + query_name )
+                is_valid = False
         else:
-            print("Bad Time:" + query_name )
+            if is_valid:
+                print("Bad Time:" + query_name )
             is_valid = False
         query_ip_str = query_parts[4+as_parsed]
         if query_ip_str.startswith("i"):
-            ip_num = int(query_ip_str[1:], 16)
-            self.query_ip = str(ip_num>>24)+ "." + \
-                str((ip_num>>16)&255)+ "." + \
-                str((ip_num>>8)&255)+ "." + \
-                str(ip_num&255)
+            try:
+                ip_num = int(query_ip_str[1:], 16)
+                self.query_ip = str(ip_num>>24)+ "." + \
+                    str((ip_num>>16)&255)+ "." + \
+                    str((ip_num>>8)&255)+ "." + \
+                    str(ip_num&255)
+            except:
+                if is_valid:
+                    print("Bad IP: " + query_name)
+                is_valid = False
         else:
-            print("Bad IP:" + query_name )
+            if is_valid:
+                print("Bad IP:" + query_name )
             is_valid = False
         return is_valid
 
